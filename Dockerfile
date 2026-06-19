@@ -12,6 +12,33 @@ RUN pip install --index-url "${PYTORCH_INDEX_URL}" "${TORCH_PACKAGE}"
 RUN --mount=type=ssh \
     echo "${TORCH_PACKAGE}" > /tmp/torch-constraints.txt && \
     pip install --ignore-installed --extra-index-url "${PYTORCH_INDEX_URL}" --constraint /tmp/torch-constraints.txt "${INSTANOVO_PACKAGE}"
+RUN python3 - <<'PY'
+import json
+import urllib.request
+from importlib import resources
+from pathlib import Path
+from urllib.parse import urlsplit
+
+model_ids = (("transformer", "instanovo-v1.2.0"), ("diffusion", "instanovoplus-v1.1.0"))
+cache_dir = Path.home() / ".cache" / "instanovo"
+cache_dir.mkdir(parents=True, exist_ok=True)
+with resources.files("instanovo").joinpath("models.json").open("r", encoding="utf-8") as handle:
+    models = json.load(handle)
+for model_type, model_id in model_ids:
+    url = models[model_type][model_id]["remote"]
+    target = cache_dir / Path(urlsplit(url).path).name
+    tmp = target.with_suffix(target.suffix + ".tmp")
+    if target.exists():
+        continue
+    print(f"Prefetching {model_id} -> {target}")
+    _, headers = urllib.request.urlretrieve(url, tmp)
+    expected = headers.get("Content-Length")
+    if expected is not None and tmp.stat().st_size != int(expected):
+        downloaded = tmp.stat().st_size
+        tmp.unlink(missing_ok=True)
+        raise RuntimeError(f"Downloaded {model_id} incompletely: expected {expected}, got {downloaded}")
+    tmp.replace(target)
+PY
 HEALTHCHECK --start-period=10m --interval=30s --retries=50 CMD curl --fail localhost:8501/v2/health/ready
 CMD [ "/models/start.py" ]
 
@@ -23,6 +50,33 @@ RUN --mount=type=bind,from=instanovo,source=.,target=/tmp/instanovo \
     echo "${TORCH_PACKAGE}" > /tmp/torch-constraints.txt && \
     cp -a /tmp/instanovo /tmp/instanovo-writable && \
     pip install --ignore-installed --extra-index-url "${PYTORCH_INDEX_URL}" --constraint /tmp/torch-constraints.txt "/tmp/instanovo-writable"
+RUN python3 - <<'PY'
+import json
+import urllib.request
+from importlib import resources
+from pathlib import Path
+from urllib.parse import urlsplit
+
+model_ids = (("transformer", "instanovo-v1.2.0"), ("diffusion", "instanovoplus-v1.1.0"))
+cache_dir = Path.home() / ".cache" / "instanovo"
+cache_dir.mkdir(parents=True, exist_ok=True)
+with resources.files("instanovo").joinpath("models.json").open("r", encoding="utf-8") as handle:
+    models = json.load(handle)
+for model_type, model_id in model_ids:
+    url = models[model_type][model_id]["remote"]
+    target = cache_dir / Path(urlsplit(url).path).name
+    tmp = target.with_suffix(target.suffix + ".tmp")
+    if target.exists():
+        continue
+    print(f"Prefetching {model_id} -> {target}")
+    _, headers = urllib.request.urlretrieve(url, tmp)
+    expected = headers.get("Content-Length")
+    if expected is not None and tmp.stat().st_size != int(expected):
+        downloaded = tmp.stat().st_size
+        tmp.unlink(missing_ok=True)
+        raise RuntimeError(f"Downloaded {model_id} incompletely: expected {expected}, got {downloaded}")
+    tmp.replace(target)
+PY
 HEALTHCHECK --start-period=10m --interval=30s --retries=50 CMD curl --fail localhost:8501/v2/health/ready
 CMD [ "/models/start.py" ]
 
