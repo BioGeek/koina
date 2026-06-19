@@ -8,7 +8,7 @@ import tritonclient.grpc as grpcclient
 from test.server_config import SERVER_GRPC, SERVER_HTTP
 
 
-MODEL_NAMES = ("InstaNovo", "InstaNovoPlus", "InstaNovoCombined")
+MODEL_NAMES = ("InstaNovo", "InstaNovoPlus", "InstaNovoWithRefinement")
 
 
 def _inputs() -> list[grpcclient.InferInput]:
@@ -78,7 +78,7 @@ def test_inference_contract(model_name: str) -> None:
     predictions = result.as_numpy("predictions")
     assert all(isinstance(value, bytes) for value in predictions.reshape(-1))
 
-    if model_name == "InstaNovoCombined":
+    if model_name == "InstaNovoWithRefinement":
         assert result.as_numpy("instanovo_predictions").shape == (2, 1)
         assert result.as_numpy("instanovo_log_probs").shape == (2, 1)
         assert result.as_numpy("instanovo_confidence").shape == (2, 1)

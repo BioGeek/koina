@@ -27,7 +27,12 @@ class TritonInstaNovoModel:
     MODEL_KIND = "transformer"
 
     def initialize(self, args: dict[str, Any]) -> None:
-        from instanovo.serving.koina import CombinedKoinaModel, DiffusionKoinaModel, ServingConfig, TransformerKoinaModel
+        from instanovo.serving.koina import (
+            DiffusionKoinaModel,
+            InstaNovoWithRefinementKoinaModel,
+            ServingConfig,
+            TransformerKoinaModel,
+        )
 
         self.model_config = json.loads(args["model_config"])
         self.output_dtypes = {
@@ -57,7 +62,7 @@ class TritonInstaNovoModel:
                 force_fp32=force_fp32,
             )
             self.model = DiffusionKoinaModel.from_pretrained(config)
-        elif self.MODEL_KIND == "combined":
+        elif self.MODEL_KIND == "with_refinement":
             transformer_config = ServingConfig(
                 model_id=os.getenv("INSTANOVO_MODEL_ID", "instanovo-v1.2.0"),
                 device=device,
@@ -72,7 +77,7 @@ class TritonInstaNovoModel:
                 max_length=max_length,
                 force_fp32=force_fp32,
             )
-            self.model = CombinedKoinaModel.from_pretrained(transformer_config, diffusion_config)
+            self.model = InstaNovoWithRefinementKoinaModel.from_pretrained(transformer_config, diffusion_config)
         else:
             raise ValueError(f"Unknown InstaNovo model kind: {self.MODEL_KIND}")
 

@@ -9,4 +9,4 @@ from koina_triton import TritonInstaNovoModel  # noqa: E402
 
 
 class TritonPythonModel(TritonInstaNovoModel):
-    MODEL_KIND = "combined"
+    MODEL_KIND = "with_refinement"
