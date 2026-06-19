@@ -145,6 +145,15 @@ Let's make sure everything was set up correctly by running the tests for the Pyt
 
 If you only loaded specific models, you can run only tests for that model by specifying the corresponding file like this: `poetry run pytest test/Prosit/test_Prosit_2019_intensity.py`.
 
+### Running the InstaNovo Models
+
+The `InstaNovo`, `InstaNovoPlus`, and `InstaNovoWithRefinement` endpoints are GPU-only Python-backend
+models. They use a dedicated CUDA/Triton image setup and include an MGF client example for
+end-to-end predictions.
+
+For build commands, server startup, readiness checks, HTTP examples, and the MGF-to-CSV workflow, see
+[Serving InstaNovo Models](InstaNovo.md).
+
 ### Repo File Structure
 
 The high-level structure of the repo is:

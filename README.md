@@ -95,6 +95,20 @@ The output of an HTTP request is always a JSON object. The `outputs` key contain
 ### Python
 For examples of how to access models using Python, you can check out [our OpenAPI documentation ](https://koina.wilhelmlab.org/docs/#overview).
 
+### InstaNovo
+
+Koina includes GPU-only Triton endpoints for `InstaNovo`, `InstaNovoPlus`, and
+`InstaNovoWithRefinement`. The recommended end-to-end workflow for MGF files is to run a local Koina
+server and call it with `clients/python/examples/instanovo_mgf.py`.
+
+See [docs/InstaNovo.md](docs/InstaNovo.md) for:
+
+- building the CUDA/Triton image,
+- starting a local server,
+- checking model readiness,
+- sending raw HTTP inference requests,
+- running MGF-to-CSV predictions with `uv`.
+
 ## Hosting your own server
 
 ### Dependencies

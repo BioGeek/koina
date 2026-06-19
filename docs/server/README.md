@@ -11,6 +11,9 @@ If you want to use any other Linux distribution, please read up on how to instal
 - [CUDA](https://developer.nvidia.com/cuda-toolkit)
 - [Nvidia Driver](https://docs.nvidia.com/datacenter/tesla/tesla-installation-notes/index.html#introduction)
 
+For an end-to-end example of building and running GPU-backed InstaNovo models with Koina, see
+[Serving InstaNovo Models](../InstaNovo.md).
+
 
 ## Ansible
 
