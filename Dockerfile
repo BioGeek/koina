@@ -1,6 +1,7 @@
 # syntax=docker/dockerfile:1.4
 FROM nvcr.io/nvidia/tritonserver:23.05-py3 AS serving-base
 RUN pip install requests ms2pip==3.13 psm-utils pandas pyteomics==4.6.2 rdkit==2024.3.5
+RUN python3 -m pip install --upgrade pip setuptools wheel
 RUN mkdir -p -m 0700 ~/.ssh && ssh-keyscan github.com >> ~/.ssh/known_hosts
 
 FROM serving-base AS serving-develop
