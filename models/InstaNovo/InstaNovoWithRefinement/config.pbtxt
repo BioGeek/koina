@@ -1,5 +1,11 @@
 backend: "python"
 max_batch_size: 128
+instance_group [
+  {
+    count: 1
+    kind: KIND_GPU
+  }
+]
 input [
   {
     name: "mz_array"
