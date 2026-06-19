@@ -5,7 +5,9 @@ from __future__ import annotations
 
 import argparse
 import re
+import sys
 from pathlib import Path
+from queue import Queue
 from typing import Any
 
 np: Any = None
@@ -46,6 +48,19 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("-s", "--server", default="localhost:8500", help="Triton gRPC server, for example localhost:8500.")
     parser.add_argument("--ssl", action="store_true", help="Use TLS for the gRPC connection.")
     parser.add_argument("-b", "--batch-size", type=int, default=16, help="Number of spectra per inference request.")
+    parser.add_argument(
+        "-c",
+        "--concurrency",
+        type=int,
+        default=1,
+        help="Maximum number of in-flight Triton requests. Values above 1 use async gRPC inference.",
+    )
+    parser.add_argument(
+        "--timeout",
+        type=float,
+        default=None,
+        help="Optional client-side timeout in seconds for each Triton request.",
+    )
     parser.add_argument("-o", "--output", type=Path, default=Path("instanovo_predictions.csv"), help="Output CSV path.")
     return parser.parse_args()
 
@@ -115,7 +130,7 @@ def make_batch(rows: list[dict[str, Any]]) -> dict[str, np.ndarray]:
     }
 
 
-def infer(client: grpcclient.InferenceServerClient, model_name: str, batch: dict[str, np.ndarray]) -> grpcclient.InferResult:
+def make_inputs(batch: dict[str, np.ndarray]) -> list[grpcclient.InferInput]:
     inputs = []
     for name, values, dtype in (
         ("mz_array", batch["mz_array"], "FP32"),
@@ -127,7 +142,16 @@ def infer(client: grpcclient.InferenceServerClient, model_name: str, batch: dict
         tensor = grpcclient.InferInput(name, values.shape, dtype)
         tensor.set_data_from_numpy(values)
         inputs.append(tensor)
-    return client.infer(model_name, inputs=inputs)
+    return inputs
+
+
+def infer(
+    client: grpcclient.InferenceServerClient,
+    model_name: str,
+    batch: dict[str, np.ndarray],
+    timeout: float | None,
+) -> grpcclient.InferResult:
+    return client.infer(model_name, inputs=make_inputs(batch), client_timeout=timeout)
 
 
 def decode_value(value: Any) -> Any:
@@ -164,10 +188,96 @@ def predictions_to_rows(batch_rows: list[dict[str, Any]], result: grpcclient.Inf
     return rows
 
 
+def iter_batches(spectra: list[dict[str, Any]], batch_size: int) -> list[tuple[int, list[dict[str, Any]]]]:
+    return [
+        (batch_index, spectra[start : start + batch_size])
+        for batch_index, start in enumerate(range(0, len(spectra), batch_size))
+    ]
+
+
+def report_progress(done: int, total: int) -> None:
+    if total < 2:
+        return
+    print(f"\rCompleted {done}/{total} batches", end="", file=sys.stderr, flush=True)
+    if done == total:
+        print(file=sys.stderr)
+
+
+def predict_sync(
+    client: grpcclient.InferenceServerClient,
+    model_name: str,
+    batches: list[tuple[int, list[dict[str, Any]]]],
+    output_names: list[str],
+    timeout: float | None,
+) -> list[dict[str, Any]]:
+    output_rows = []
+    for done, (_, batch_rows) in enumerate(batches, start=1):
+        result = infer(client, model_name, make_batch(batch_rows), timeout)
+        output_rows.extend(predictions_to_rows(batch_rows, result, output_names))
+        report_progress(done, len(batches))
+    return output_rows
+
+
+def predict_async(
+    client: grpcclient.InferenceServerClient,
+    model_name: str,
+    batches: list[tuple[int, list[dict[str, Any]]]],
+    output_names: list[str],
+    concurrency: int,
+    timeout: float | None,
+) -> list[dict[str, Any]]:
+    completed: Queue[tuple[int, grpcclient.InferResult | None, Exception | None]] = Queue()
+    rows_by_batch: dict[int, list[dict[str, Any]]] = {}
+    next_batch = 0
+    in_flight = 0
+    done = 0
+
+    def submit(batch_index: int, batch_rows: list[dict[str, Any]]) -> None:
+        def callback(result: grpcclient.InferResult | None, error: Exception | None) -> None:
+            completed.put((batch_index, result, error))
+
+        client.async_infer(
+            model_name=model_name,
+            request_id=str(batch_index),
+            inputs=make_inputs(make_batch(batch_rows)),
+            callback=callback,
+            client_timeout=timeout,
+        )
+
+    while next_batch < len(batches) and in_flight < concurrency:
+        submit(*batches[next_batch])
+        next_batch += 1
+        in_flight += 1
+
+    while in_flight:
+        batch_index, result, error = completed.get()
+        in_flight -= 1
+        if error is not None:
+            raise RuntimeError(f"Inference failed for batch {batch_index}: {error}") from error
+        if result is None:
+            raise RuntimeError(f"Inference failed for batch {batch_index}: Triton returned no result.")
+
+        rows_by_batch[batch_index] = predictions_to_rows(batches[batch_index][1], result, output_names)
+        done += 1
+        report_progress(done, len(batches))
+
+        while next_batch < len(batches) and in_flight < concurrency:
+            submit(*batches[next_batch])
+            next_batch += 1
+            in_flight += 1
+
+    output_rows = []
+    for batch_index in sorted(rows_by_batch):
+        output_rows.extend(rows_by_batch[batch_index])
+    return output_rows
+
+
 def main() -> None:
     args = parse_args()
     if args.batch_size < 1:
         raise SystemExit("--batch-size must be at least 1.")
+    if args.concurrency < 1:
+        raise SystemExit("--concurrency must be at least 1.")
     if not args.mgf.exists():
         raise SystemExit(f"Input MGF not found: {args.mgf}")
 
@@ -179,11 +289,11 @@ def main() -> None:
         raise RuntimeError(f"Model {args.model} is not ready on {args.server}.")
     output_names = [output.name for output in client.get_model_metadata(args.model).outputs]
 
-    output_rows = []
-    for start in range(0, len(spectra), args.batch_size):
-        batch_rows = spectra[start : start + args.batch_size]
-        result = infer(client, args.model, make_batch(batch_rows))
-        output_rows.extend(predictions_to_rows(batch_rows, result, output_names))
+    batches = iter_batches(spectra, args.batch_size)
+    if args.concurrency == 1:
+        output_rows = predict_sync(client, args.model, batches, output_names, args.timeout)
+    else:
+        output_rows = predict_async(client, args.model, batches, output_names, args.concurrency, args.timeout)
 
     pd.DataFrame(output_rows).to_csv(args.output, index=False)
     print(f"Wrote {len(output_rows)} predictions to {args.output}")

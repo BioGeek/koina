@@ -234,6 +234,7 @@ uv run \
   python clients/python/examples/instanovo_mgf.py input.mgf \
     --model InstaNovoWithRefinement \
     --server localhost:8500 \
+    --concurrency 2 \
     --output predictions.csv
 ```
 
@@ -244,12 +245,18 @@ Useful options:
 | `--model` | One of `InstaNovo`, `InstaNovoPlus`, or `InstaNovoWithRefinement`. |
 | `--server` | Triton gRPC endpoint, for example `localhost:8500`. |
 | `--batch-size` | Number of spectra per request. Default is `16`. |
+| `--concurrency` | Number of in-flight Triton requests. Default is `1`; use `2` or higher for async gRPC submission. |
+| `--timeout` | Optional client-side timeout in seconds for each Triton request. |
 | `--ssl` | Use TLS for the gRPC connection. |
 | `--output` | Output CSV path. |
 
 The output CSV includes the original spectrum index, precursor metadata, the best prediction, beam
 predictions, confidence scores, mass errors, and, for `InstaNovoWithRefinement`, the initial
 InstaNovo prediction before refinement.
+
+Predictions can take a long time for large MGF files. Increase `--concurrency` to keep multiple
+batches queued through Triton's async gRPC client. On a single GPU, start with `--concurrency 2`;
+larger values may increase memory use or queueing without improving throughput.
 
 ## Troubleshooting
 
