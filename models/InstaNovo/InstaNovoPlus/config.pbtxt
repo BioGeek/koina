@@ -1,0 +1,91 @@
+backend: "python"
+max_batch_size: 128
+input [
+  {
+    name: "mz_array"
+    data_type: TYPE_FP32
+    dims: [-1]
+  },
+  {
+    name: "intensity_array"
+    data_type: TYPE_FP32
+    dims: [-1]
+  },
+  {
+    name: "precursor_mz"
+    data_type: TYPE_FP32
+    dims: [1]
+  },
+  {
+    name: "precursor_charge"
+    data_type: TYPE_INT32
+    dims: [1]
+  },
+  {
+    name: "num_peaks"
+    data_type: TYPE_INT32
+    dims: [1]
+  }
+]
+output [
+  {
+    name: "predictions"
+    data_type: TYPE_STRING
+    dims: [1]
+  },
+  {
+    name: "predictions_tokenised"
+    data_type: TYPE_STRING
+    dims: [1]
+  },
+  {
+    name: "token_log_probs"
+    data_type: TYPE_STRING
+    dims: [1]
+  },
+  {
+    name: "log_probs"
+    data_type: TYPE_FP32
+    dims: [1]
+  },
+  {
+    name: "confidence"
+    data_type: TYPE_FP32
+    dims: [1]
+  },
+  {
+    name: "delta_mass_ppm"
+    data_type: TYPE_FP32
+    dims: [1]
+  },
+  {
+    name: "beam_predictions"
+    data_type: TYPE_STRING
+    dims: [5]
+  },
+  {
+    name: "beam_predictions_tokenised"
+    data_type: TYPE_STRING
+    dims: [5]
+  },
+  {
+    name: "beam_token_log_probs"
+    data_type: TYPE_STRING
+    dims: [5]
+  },
+  {
+    name: "beam_log_probs"
+    data_type: TYPE_FP32
+    dims: [5]
+  },
+  {
+    name: "beam_confidence"
+    data_type: TYPE_FP32
+    dims: [5]
+  },
+  {
+    name: "beam_delta_mass_ppm"
+    data_type: TYPE_FP32
+    dims: [5]
+  }
+]
