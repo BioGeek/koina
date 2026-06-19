@@ -12,33 +12,15 @@ RUN pip install --index-url "${PYTORCH_INDEX_URL}" "${TORCH_PACKAGE}"
 RUN --mount=type=ssh \
     echo "${TORCH_PACKAGE}" > /tmp/torch-constraints.txt && \
     pip install --ignore-installed --extra-index-url "${PYTORCH_INDEX_URL}" --constraint /tmp/torch-constraints.txt "${INSTANOVO_PACKAGE}"
-RUN python3 - <<'PY'
-import json
-import urllib.request
-from importlib import resources
-from pathlib import Path
-from urllib.parse import urlsplit
-
-model_ids = (("transformer", "instanovo-v1.2.0"), ("diffusion", "instanovoplus-v1.1.0"))
-cache_dir = Path.home() / ".cache" / "instanovo"
-cache_dir.mkdir(parents=True, exist_ok=True)
-with resources.files("instanovo").joinpath("models.json").open("r", encoding="utf-8") as handle:
-    models = json.load(handle)
-for model_type, model_id in model_ids:
-    url = models[model_type][model_id]["remote"]
-    target = cache_dir / Path(urlsplit(url).path).name
-    tmp = target.with_suffix(target.suffix + ".tmp")
-    if target.exists():
-        continue
-    print(f"Prefetching {model_id} -> {target}")
-    _, headers = urllib.request.urlretrieve(url, tmp)
-    expected = headers.get("Content-Length")
-    if expected is not None and tmp.stat().st_size != int(expected):
-        downloaded = tmp.stat().st_size
-        tmp.unlink(missing_ok=True)
-        raise RuntimeError(f"Downloaded {model_id} incompletely: expected {expected}, got {downloaded}")
-    tmp.replace(target)
-PY
+RUN mkdir -p /root/.cache/instanovo && \
+    curl -fL --retry 5 --retry-delay 5 \
+      https://github.com/instadeepai/InstaNovo/releases/download/1.2.0/instanovo-v1.2.0.ckpt \
+      -o /root/.cache/instanovo/instanovo-v1.2.0.ckpt.tmp && \
+    mv /root/.cache/instanovo/instanovo-v1.2.0.ckpt.tmp /root/.cache/instanovo/instanovo-v1.2.0.ckpt && \
+    curl -fL --retry 5 --retry-delay 5 \
+      https://github.com/instadeepai/InstaNovo/releases/download/1.1.3/instanovoplus-v1.1.0.ckpt \
+      -o /root/.cache/instanovo/instanovoplus-v1.1.0.ckpt.tmp && \
+    mv /root/.cache/instanovo/instanovoplus-v1.1.0.ckpt.tmp /root/.cache/instanovo/instanovoplus-v1.1.0.ckpt
 HEALTHCHECK --start-period=10m --interval=30s --retries=50 CMD curl --fail localhost:8501/v2/health/ready
 CMD [ "/models/start.py" ]
 
@@ -50,33 +32,15 @@ RUN --mount=type=bind,from=instanovo,source=.,target=/tmp/instanovo \
     echo "${TORCH_PACKAGE}" > /tmp/torch-constraints.txt && \
     cp -a /tmp/instanovo /tmp/instanovo-writable && \
     pip install --ignore-installed --extra-index-url "${PYTORCH_INDEX_URL}" --constraint /tmp/torch-constraints.txt "/tmp/instanovo-writable"
-RUN python3 - <<'PY'
-import json
-import urllib.request
-from importlib import resources
-from pathlib import Path
-from urllib.parse import urlsplit
-
-model_ids = (("transformer", "instanovo-v1.2.0"), ("diffusion", "instanovoplus-v1.1.0"))
-cache_dir = Path.home() / ".cache" / "instanovo"
-cache_dir.mkdir(parents=True, exist_ok=True)
-with resources.files("instanovo").joinpath("models.json").open("r", encoding="utf-8") as handle:
-    models = json.load(handle)
-for model_type, model_id in model_ids:
-    url = models[model_type][model_id]["remote"]
-    target = cache_dir / Path(urlsplit(url).path).name
-    tmp = target.with_suffix(target.suffix + ".tmp")
-    if target.exists():
-        continue
-    print(f"Prefetching {model_id} -> {target}")
-    _, headers = urllib.request.urlretrieve(url, tmp)
-    expected = headers.get("Content-Length")
-    if expected is not None and tmp.stat().st_size != int(expected):
-        downloaded = tmp.stat().st_size
-        tmp.unlink(missing_ok=True)
-        raise RuntimeError(f"Downloaded {model_id} incompletely: expected {expected}, got {downloaded}")
-    tmp.replace(target)
-PY
+RUN mkdir -p /root/.cache/instanovo && \
+    curl -fL --retry 5 --retry-delay 5 \
+      https://github.com/instadeepai/InstaNovo/releases/download/1.2.0/instanovo-v1.2.0.ckpt \
+      -o /root/.cache/instanovo/instanovo-v1.2.0.ckpt.tmp && \
+    mv /root/.cache/instanovo/instanovo-v1.2.0.ckpt.tmp /root/.cache/instanovo/instanovo-v1.2.0.ckpt && \
+    curl -fL --retry 5 --retry-delay 5 \
+      https://github.com/instadeepai/InstaNovo/releases/download/1.1.3/instanovoplus-v1.1.0.ckpt \
+      -o /root/.cache/instanovo/instanovoplus-v1.1.0.ckpt.tmp && \
+    mv /root/.cache/instanovo/instanovoplus-v1.1.0.ckpt.tmp /root/.cache/instanovo/instanovoplus-v1.1.0.ckpt
 HEALTHCHECK --start-period=10m --interval=30s --retries=50 CMD curl --fail localhost:8501/v2/health/ready
 CMD [ "/models/start.py" ]
 
