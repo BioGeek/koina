@@ -5,15 +5,21 @@ RUN python3 -m pip install --upgrade pip setuptools wheel
 RUN mkdir -p -m 0700 ~/.ssh && ssh-keyscan github.com >> ~/.ssh/known_hosts
 
 FROM serving-base AS serving-develop
-ARG INSTANOVO_PACKAGE="instanovo[cu126] @ git+https://github.com/instadeepai/InstaNovo.git@main"
-RUN --mount=type=ssh pip install --ignore-installed --extra-index-url https://download.pytorch.org/whl/cu126 "${INSTANOVO_PACKAGE}"
+ARG PYTORCH_INDEX_URL="https://download.pytorch.org/whl/cu121"
+ARG TORCH_PACKAGE="torch==2.4.1+cu121"
+ARG INSTANOVO_PACKAGE="instanovo @ git+https://github.com/instadeepai/InstaNovo.git@main"
+RUN pip install --index-url "${PYTORCH_INDEX_URL}" "${TORCH_PACKAGE}"
+RUN --mount=type=ssh pip install --ignore-installed "${INSTANOVO_PACKAGE}"
 HEALTHCHECK --start-period=10m --interval=30s --retries=50 CMD curl --fail localhost:8501/v2/health/ready
 CMD [ "/models/start.py" ]
 
 FROM serving-base AS serving-develop-local-instanovo
+ARG PYTORCH_INDEX_URL="https://download.pytorch.org/whl/cu121"
+ARG TORCH_PACKAGE="torch==2.4.1+cu121"
+RUN pip install --index-url "${PYTORCH_INDEX_URL}" "${TORCH_PACKAGE}"
 RUN --mount=type=bind,from=instanovo,source=.,target=/tmp/instanovo \
     cp -a /tmp/instanovo /tmp/instanovo-writable && \
-    pip install --ignore-installed --extra-index-url https://download.pytorch.org/whl/cu126 "/tmp/instanovo-writable[cu126]"
+    pip install --ignore-installed "/tmp/instanovo-writable"
 HEALTHCHECK --start-period=10m --interval=30s --retries=50 CMD curl --fail localhost:8501/v2/health/ready
 CMD [ "/models/start.py" ]
 
