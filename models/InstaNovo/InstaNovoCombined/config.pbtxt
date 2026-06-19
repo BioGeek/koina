@@ -1,10 +1,5 @@
 backend: "python"
 max_batch_size: 128
-instance_group [
-  {
-    kind: KIND_CPU
-  }
-]
 input [
   {
     name: "mz_array"
