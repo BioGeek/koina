@@ -1,7 +1,8 @@
+# syntax=docker/dockerfile:1.4
 FROM nvcr.io/nvidia/tritonserver:23.05-py3 AS serving-develop
 RUN pip install requests ms2pip==3.13 psm-utils pandas pyteomics==4.6.2 rdkit==2024.3.5
 ARG INSTANOVO_PACKAGE="instanovo[cu126] @ git+https://github.com/instadeepai/InstaNovo.git@main"
-RUN pip install --extra-index-url https://download.pytorch.org/whl/cu126 "${INSTANOVO_PACKAGE}"
+RUN --mount=type=ssh pip install --extra-index-url https://download.pytorch.org/whl/cu126 "${INSTANOVO_PACKAGE}"
 HEALTHCHECK --start-period=10m --interval=30s --retries=50 CMD curl --fail localhost:8501/v2/health/ready
 CMD [ "/models/start.py" ]
 
