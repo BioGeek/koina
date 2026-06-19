@@ -1,17 +1,17 @@
 # syntax=docker/dockerfile:1.4
-FROM nvcr.io/nvidia/tritonserver:23.05-py3 AS serving-base
+FROM nvcr.io/nvidia/tritonserver:24.10-py3 AS serving-base
 RUN pip install requests ms2pip==3.13 psm-utils pandas pyteomics==4.6.2 rdkit==2024.3.5
 RUN python3 -m pip install --upgrade pip setuptools wheel
+RUN pip install --ignore-installed blinker
 RUN mkdir -p -m 0700 ~/.ssh && ssh-keyscan github.com >> ~/.ssh/known_hosts
 
 FROM serving-base AS serving-develop
-ARG PYTORCH_INDEX_URL="https://download.pytorch.org/whl/cu121"
-ARG TORCH_PACKAGE="torch==2.4.1+cu121"
-ARG INSTANOVO_PACKAGE="instanovo @ git+https://github.com/instadeepai/InstaNovo.git@main"
-RUN pip install --index-url "${PYTORCH_INDEX_URL}" "${TORCH_PACKAGE}"
+ARG PYTORCH_INDEX_URL="https://download.pytorch.org/whl/cu126"
+ARG TORCH_PACKAGE="torch==2.8.0+cu126"
+ARG INSTANOVO_PACKAGE="instanovo[cu126] @ git+https://github.com/instadeepai/InstaNovo.git@main"
 RUN --mount=type=ssh \
-    echo "${TORCH_PACKAGE}" > /tmp/torch-constraints.txt && \
-    pip install --ignore-installed --extra-index-url "${PYTORCH_INDEX_URL}" --constraint /tmp/torch-constraints.txt "${INSTANOVO_PACKAGE}"
+    echo "${TORCH_PACKAGE}" > /tmp/instanovo-constraints.txt && \
+    pip install --extra-index-url "${PYTORCH_INDEX_URL}" --constraint /tmp/instanovo-constraints.txt "${INSTANOVO_PACKAGE}"
 RUN mkdir -p /root/.cache/instanovo && \
     curl -fL --retry 5 --retry-delay 5 \
       https://github.com/instadeepai/InstaNovo/releases/download/1.2.0/instanovo-v1.2.0.ckpt \
@@ -21,17 +21,18 @@ RUN mkdir -p /root/.cache/instanovo && \
       https://github.com/instadeepai/InstaNovo/releases/download/1.1.3/instanovoplus-v1.1.0.ckpt \
       -o /root/.cache/instanovo/instanovoplus-v1.1.0.ckpt.tmp && \
     mv /root/.cache/instanovo/instanovoplus-v1.1.0.ckpt.tmp /root/.cache/instanovo/instanovoplus-v1.1.0.ckpt
+# Triton 24.10 Python backend returns zero-byte output buffers with NumPy 2.x.
+RUN pip install --force-reinstall --no-cache-dir "numpy<2"
 HEALTHCHECK --start-period=10m --interval=30s --retries=50 CMD curl --fail localhost:8501/v2/health/ready
 CMD [ "/models/start.py" ]
 
 FROM serving-base AS serving-develop-local-instanovo
-ARG PYTORCH_INDEX_URL="https://download.pytorch.org/whl/cu121"
-ARG TORCH_PACKAGE="torch==2.4.1+cu121"
-RUN pip install --index-url "${PYTORCH_INDEX_URL}" "${TORCH_PACKAGE}"
+ARG PYTORCH_INDEX_URL="https://download.pytorch.org/whl/cu126"
+ARG TORCH_PACKAGE="torch==2.8.0+cu126"
 RUN --mount=type=bind,from=instanovo,source=.,target=/tmp/instanovo \
-    echo "${TORCH_PACKAGE}" > /tmp/torch-constraints.txt && \
+    echo "${TORCH_PACKAGE}" > /tmp/instanovo-constraints.txt && \
     cp -a /tmp/instanovo /tmp/instanovo-writable && \
-    pip install --ignore-installed --extra-index-url "${PYTORCH_INDEX_URL}" --constraint /tmp/torch-constraints.txt "/tmp/instanovo-writable"
+    pip install --extra-index-url "${PYTORCH_INDEX_URL}" --constraint /tmp/instanovo-constraints.txt "/tmp/instanovo-writable[cu126]"
 RUN mkdir -p /root/.cache/instanovo && \
     curl -fL --retry 5 --retry-delay 5 \
       https://github.com/instadeepai/InstaNovo/releases/download/1.2.0/instanovo-v1.2.0.ckpt \
@@ -41,6 +42,8 @@ RUN mkdir -p /root/.cache/instanovo && \
       https://github.com/instadeepai/InstaNovo/releases/download/1.1.3/instanovoplus-v1.1.0.ckpt \
       -o /root/.cache/instanovo/instanovoplus-v1.1.0.ckpt.tmp && \
     mv /root/.cache/instanovo/instanovoplus-v1.1.0.ckpt.tmp /root/.cache/instanovo/instanovoplus-v1.1.0.ckpt
+# Triton 24.10 Python backend returns zero-byte output buffers with NumPy 2.x.
+RUN pip install --force-reinstall --no-cache-dir "numpy<2"
 HEALTHCHECK --start-period=10m --interval=30s --retries=50 CMD curl --fail localhost:8501/v2/health/ready
 CMD [ "/models/start.py" ]
 

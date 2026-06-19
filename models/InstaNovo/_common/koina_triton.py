@@ -35,6 +35,7 @@ class TritonInstaNovoModel:
         )
 
         self.model_config = json.loads(args["model_config"])
+        self.output_data_types = {output["name"]: output["data_type"] for output in self.model_config["output"]}
         self.output_dtypes = {
             output["name"]: pb_utils.triton_string_to_numpy(output["data_type"])
             for output in self.model_config["output"]
@@ -91,7 +92,8 @@ class TritonInstaNovoModel:
                 precursor_charge=self._input(request, "precursor_charge"),
                 num_peaks=self._input(request, "num_peaks"),
             )
-            responses.append(pb_utils.InferenceResponse(output_tensors=self._output_tensors(output)))
+            requested_outputs = request.requested_output_names()
+            responses.append(pb_utils.InferenceResponse(output_tensors=self._output_tensors(output, requested_outputs)))
         return responses
 
     @staticmethod
@@ -101,13 +103,19 @@ class TritonInstaNovoModel:
             raise ValueError(f"Missing required input tensor: {name}")
         return tensor.as_numpy()
 
-    def _output_tensors(self, output: dict[str, np.ndarray]) -> list[Any]:
+    def _output_tensors(self, output: dict[str, np.ndarray], requested_outputs: list[str] | None = None) -> list[Any]:
         tensors = []
         for name, dtype in self.output_dtypes.items():
+            if requested_outputs and name not in requested_outputs:
+                continue
             values = output[name]
             if name in TOP_OUTPUTS:
                 values = values.reshape((-1, 1))
-            tensors.append(pb_utils.Tensor(name, values.astype(dtype)))
+            if self.output_data_types[name] == "TYPE_STRING":
+                values = values.astype(np.object_)
+            else:
+                values = values.astype(dtype)
+            tensors.append(pb_utils.Tensor(name, values))
         return tensors
 
     def finalize(self) -> None:
