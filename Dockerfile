@@ -11,7 +11,8 @@ CMD [ "/models/start.py" ]
 
 FROM serving-base AS serving-develop-local-instanovo
 RUN --mount=type=bind,from=instanovo,source=.,target=/tmp/instanovo \
-    pip install --extra-index-url https://download.pytorch.org/whl/cu126 "/tmp/instanovo[cu126]"
+    cp -a /tmp/instanovo /tmp/instanovo-writable && \
+    pip install --extra-index-url https://download.pytorch.org/whl/cu126 "/tmp/instanovo-writable[cu126]"
 HEALTHCHECK --start-period=10m --interval=30s --retries=50 CMD curl --fail localhost:8501/v2/health/ready
 CMD [ "/models/start.py" ]
 
